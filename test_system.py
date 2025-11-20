@@ -93,13 +93,25 @@ def test_regime_detector():
     di = DataIngestion('BTC/USD', '1h')
     data = di.load_ohlcv()
     
-    detector = RegimeDetector()
+    # Test rule-based detector
+    detector = RegimeDetector(use_ml=False)
     regime = detector.detect_regime(data)
     
     assert regime in ['trending', 'ranging', 'high_volatility', 'low_volatility'], \
         "Should return valid regime"
     
-    print(f"  ✓ Current regime: {regime}")
+    print(f"  ✓ Rule-based regime: {regime}")
+    
+    # Test ML-based detector
+    ml_detector = RegimeDetector(use_ml=True)
+    ml_detector.train(data, lookback=100)
+    ml_regime = ml_detector.detect_regime(data)
+    
+    assert ml_regime in ['trending', 'ranging', 'high_volatility', 'low_volatility'], \
+        "Should return valid regime"
+    
+    print(f"  ✓ ML-based regime: {ml_regime}")
+    print(f"  ✓ Regime detector trained successfully")
 
 
 def test_signal_scorer():

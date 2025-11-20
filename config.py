@@ -20,6 +20,7 @@ MULTI_TIMEFRAMES = ['5m', '1h', '4h']
 # Model parameters
 SCORER_PROBABILITY_THRESHOLD = 0.6  # minimum probability to trade
 ALLOWED_REGIMES = ['trending', 'high_volatility']
+USE_ML_REGIME_DETECTOR = True  # Use ML-based regime detection (Phase 2)
 
 # Risk management
 MAX_POSITION_SIZE = 0.02  # 2% of capital per trade

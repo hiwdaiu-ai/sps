@@ -38,7 +38,7 @@ class SMCTradingSystem:
             min_size=config.MIN_ORDERBLOCK_SIZE
         )
         self.feature_extractor = FeatureExtractor(atr_period=config.ATR_PERIOD)
-        self.regime_detector = RegimeDetector()
+        self.regime_detector = RegimeDetector(use_ml=config.USE_ML_REGIME_DETECTOR)
         self.scorer = SignalScorer()
         self.risk_manager = RiskManager(
             max_position_size=config.MAX_POSITION_SIZE,
@@ -63,11 +63,14 @@ class SMCTradingSystem:
         return self.data
     
     def train_models(self):
-        """Train the scoring model on historical data"""
+        """Train the scoring model and regime detector on historical data"""
         if self.data is None:
             raise ValueError("No data loaded. Call load_data first.")
         
         print("Training models...")
+        
+        # Train regime detector first (Phase 2)
+        self.regime_detector.train(self.data, lookback=200)
         
         # Detect orderblocks
         candidates = self.smc_detector.detect_orderblocks(self.data)

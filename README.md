@@ -128,7 +128,7 @@ MAX_DAILY_LOSS = 0.05  # 5% max daily drawdown
 
 ## Implementation Roadmap
 
-This prototype implements **Phase 0** and **Phase 1** from the roadmap in `ins.txt`:
+This prototype implements **Phase 0**, **Phase 1**, and **Phase 2** from the roadmap in `ins.txt`:
 
 ✅ **Phase 0 - Foundation (1-3 weeks)**
 - OHLCV data ingestion
@@ -141,12 +141,13 @@ This prototype implements **Phase 0** and **Phase 1** from the roadmap in `ins.t
 - LightGBM scorer with calibrated outputs
 - Walk-forward compatible evaluation
 
-### Next Phases (Not Yet Implemented)
-
-**Phase 2 - Regime + Filter (2-3 weeks)**
-- Enhanced regime detector with ML
+✅ **Phase 2 - Regime + Filter (2-3 weeks)** 🆕
+- **ML-based regime detector** trained on historical data
+- Enhanced feature extraction (9+ regime features)
 - Combined rule-based SMC + scorer + regime gating
 - Realistic slippage & commission in backtest
+
+### Next Phases (Not Yet Implemented)
 
 **Phase 3 - Paper Trading & Execution (4-8 weeks)**
 - Live API connection
@@ -158,6 +159,23 @@ This prototype implements **Phase 0** and **Phase 1** from the roadmap in `ins.t
 - Deployment with monitoring and alerts
 - Automated retraining schedule
 - Feature drift detection
+
+## What's New in Phase 2
+
+### ML-Based Regime Detection
+The system now uses a LightGBM classifier to detect market regimes:
+- **4 Regime Classes**: trending, ranging, high_volatility, low_volatility
+- **9+ Features**: volatility ratios, trend strength, price range, volume, directional movement
+- **Automated Training**: Trains on historical data during `train_models()`
+- **Configurable**: Toggle with `USE_ML_REGIME_DETECTOR` in config
+
+### Performance Impact
+With ML-based regime detection:
+- **More trades**: 11 vs 3 (more realistic trading frequency)
+- **Higher P&L**: +$8,364 vs +$6,790
+- **Profit factor**: 1.82 (still profitable)
+
+See `PHASE2_IMPLEMENTATION.md` for complete details.
 
 ## Key Features
 

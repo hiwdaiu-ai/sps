@@ -174,6 +174,41 @@ def example_6_risk_controls():
     print(f"  After 6% daily loss, can trade: {risk_mgr.can_trade(capital)}")
 
 
+def example_7_ml_regime_detection():
+    """Example 7: ML-based regime detection (Phase 2)"""
+    print("\n" + "=" * 60)
+    print("Example 7: ML-Based Regime Detection (Phase 2)")
+    print("=" * 60)
+    
+    from models import RegimeDetector
+    
+    system = SMCTradingSystem()
+    data = system.load_data()
+    
+    print("\nComparing Rule-based vs ML-based regime detection:")
+    
+    # Rule-based detector
+    rule_detector = RegimeDetector(use_ml=False)
+    print("\n1. Rule-based Regime Detection:")
+    for i in range(50, len(data), 100):
+        regime = rule_detector.detect_regime(data, i)
+        print(f"  Bar {i}: {regime}")
+    
+    # ML-based detector
+    ml_detector = RegimeDetector(use_ml=True)
+    ml_detector.train(data, lookback=200)
+    print("\n2. ML-based Regime Detection:")
+    for i in range(50, len(data), 100):
+        regime = ml_detector.detect_regime(data, i)
+        print(f"  Bar {i}: {regime}")
+    
+    # Show feature importance
+    print("\n3. Key Regime Features:")
+    features = ml_detector.extract_regime_features(data, len(data)-1)
+    for key, value in list(features.items())[:5]:
+        print(f"  {key}: {value:.4f}")
+
+
 def main():
     """Run all examples"""
     print("\n" + "=" * 60)
@@ -187,6 +222,7 @@ def main():
     example_4_regime_detection()
     example_5_custom_parameters()
     example_6_risk_controls()
+    example_7_ml_regime_detection()
     
     print("\n" + "=" * 60)
     print("All examples completed!")

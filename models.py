@@ -13,13 +13,143 @@ from sklearn.calibration import CalibratedClassifierCV
 class RegimeDetector:
     """Detect market regime (trending, ranging, high-volatility, low-liquidity)"""
     
-    def __init__(self):
+    def __init__(self, use_ml: bool = True):
         self.model = None
+        self.use_ml = use_ml
+        self.is_trained = False
         self.regimes = ['trending', 'ranging', 'high_volatility', 'low_volatility']
+        self.regime_to_idx = {regime: idx for idx, regime in enumerate(self.regimes)}
+        self.idx_to_regime = {idx: regime for regime, idx in self.regime_to_idx.items()}
+    
+    def extract_regime_features(self, df: pd.DataFrame, idx: int) -> Dict[str, float]:
+        """
+        Extract features for regime classification
+        
+        Args:
+            df: DataFrame with OHLCV data
+            idx: Index to extract features at
+            
+        Returns:
+            Dictionary of regime features
+        """
+        features = {}
+        
+        # Calculate technical indicators
+        df = df.copy()
+        df['atr'] = self._calculate_atr(df)
+        df['ema_fast'] = df['close'].ewm(span=12).mean()
+        df['ema_slow'] = df['close'].ewm(span=26).mean()
+        df['ema_long'] = df['close'].ewm(span=50).mean()
+        df['volume_ma'] = df['volume'].rolling(window=20).mean()
+        
+        # Volatility features
+        recent_atr = df.iloc[idx]['atr']
+        avg_atr = df['atr'].iloc[max(0, idx-50):idx].mean()
+        features['volatility_ratio'] = recent_atr / avg_atr if avg_atr > 0 else 1.0
+        features['atr_normalized'] = recent_atr / df.iloc[idx]['close']
+        
+        # Calculate rolling volatility
+        if idx >= 20:
+            returns = df['close'].pct_change()
+            features['volatility_std'] = returns.iloc[idx-20:idx].std()
+        else:
+            features['volatility_std'] = 0.02
+        
+        # Trend features
+        ema_diff = df.iloc[idx]['ema_fast'] - df.iloc[idx]['ema_slow']
+        features['trend_strength'] = ema_diff / df.iloc[idx]['close']
+        features['ema_slope_fast'] = (df.iloc[idx]['ema_fast'] - df.iloc[max(0, idx-5)]['ema_fast']) / df.iloc[idx]['close']
+        features['ema_slope_slow'] = (df.iloc[idx]['ema_slow'] - df.iloc[max(0, idx-5)]['ema_slow']) / df.iloc[idx]['close']
+        
+        # Price action features
+        if idx >= 10:
+            high_range = df.iloc[idx-10:idx]['high'].max() - df.iloc[idx-10:idx]['low'].min()
+            features['price_range'] = high_range / df.iloc[idx]['close']
+        else:
+            features['price_range'] = 0.05
+        
+        # Volume features
+        features['volume_ratio'] = df.iloc[idx]['volume'] / df.iloc[idx]['volume_ma'] if df.iloc[idx]['volume_ma'] > 0 else 1.0
+        
+        # ADX-like directional movement
+        if idx >= 14:
+            plus_dm = (df['high'].diff()).clip(lower=0)
+            minus_dm = (-df['low'].diff()).clip(lower=0)
+            features['directional_strength'] = abs(plus_dm.iloc[idx-14:idx].mean() - minus_dm.iloc[idx-14:idx].mean()) / recent_atr if recent_atr > 0 else 0
+        else:
+            features['directional_strength'] = 0.5
+        
+        return features
+    
+    def train(self, df: pd.DataFrame, lookback: int = 200):
+        """
+        Train the regime detector using ML
+        
+        Args:
+            df: DataFrame with OHLCV data
+            lookback: Number of bars to use for training
+        """
+        if not self.use_ml:
+            return
+        
+        print("Training regime detector...")
+        
+        # Generate training data
+        features_list = []
+        labels = []
+        
+        start_idx = max(100, len(df) - lookback) if lookback else 100
+        
+        for idx in range(start_idx, len(df)):
+            # Extract features
+            features = self.extract_regime_features(df, idx)
+            features_list.append(features)
+            
+            # Generate label using rule-based classification
+            label = self._rule_based_classify(features)
+            labels.append(self.regime_to_idx[label])
+        
+        if len(features_list) < 20:
+            print("Warning: Not enough data for regime training")
+            return
+        
+        # Convert to DataFrame
+        X = pd.DataFrame(features_list)
+        y = np.array(labels)
+        
+        # Train LightGBM model
+        params = {
+            'objective': 'multiclass',
+            'num_class': len(self.regimes),
+            'metric': 'multi_logloss',
+            'num_leaves': 15,
+            'learning_rate': 0.05,
+            'feature_fraction': 0.8,
+            'bagging_fraction': 0.8,
+            'bagging_freq': 5,
+            'verbose': -1
+        }
+        
+        train_data = lgb.Dataset(X, label=y)
+        self.model = lgb.train(
+            params,
+            train_data,
+            num_boost_round=50,
+            valid_sets=[train_data],
+            callbacks=[lgb.early_stopping(stopping_rounds=10, verbose=False)]
+        )
+        
+        self.is_trained = True
+        
+        # Print regime distribution
+        unique, counts = np.unique(y, return_counts=True)
+        print(f"Trained on {len(y)} samples")
+        for regime_idx, count in zip(unique, counts):
+            print(f"  {self.idx_to_regime[regime_idx]}: {count} samples")
     
     def detect_regime(self, df: pd.DataFrame, idx: int = -1) -> str:
         """
-        Detect current market regime using simple rules
+        Detect current market regime using ML or rules
         
         Args:
             df: DataFrame with OHLCV data
@@ -31,20 +161,23 @@ class RegimeDetector:
         if len(df) < 50:
             return 'ranging'
         
-        # Calculate indicators
-        df = df.copy()
-        df['atr'] = self._calculate_atr(df)
-        df['ema_fast'] = df['close'].ewm(span=12).mean()
-        df['ema_slow'] = df['close'].ewm(span=26).mean()
+        # Extract features
+        features = self.extract_regime_features(df, idx)
         
-        # Volatility metric
-        recent_atr = df.iloc[idx]['atr']
-        avg_atr = df['atr'].iloc[-50:].mean()
-        volatility_ratio = recent_atr / avg_atr if avg_atr > 0 else 1.0
-        
-        # Trend strength
-        ema_diff = abs(df.iloc[idx]['ema_fast'] - df.iloc[idx]['ema_slow'])
-        trend_strength = ema_diff / df.iloc[idx]['close']
+        # Use ML model if trained
+        if self.use_ml and self.is_trained:
+            feature_df = pd.DataFrame([features])
+            predictions = self.model.predict(feature_df)
+            regime_idx = int(np.argmax(predictions[0]))
+            return self.idx_to_regime[regime_idx]
+        else:
+            # Fall back to rule-based
+            return self._rule_based_classify(features)
+    
+    def _rule_based_classify(self, features: Dict[str, float]) -> str:
+        """Rule-based regime classification"""
+        volatility_ratio = features.get('volatility_ratio', 1.0)
+        trend_strength = abs(features.get('trend_strength', 0.0))
         
         # Classify regime
         if volatility_ratio > 1.5:

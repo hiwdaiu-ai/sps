@@ -147,13 +147,14 @@ class RegimeDetector:
         for regime_idx, count in zip(unique, counts):
             print(f"  {self.idx_to_regime[regime_idx]}: {count} samples")
     
-    def detect_regime(self, df: pd.DataFrame, idx: int = -1) -> str:
+    def detect_regime(self, df: pd.DataFrame, idx: int = -1, ensemble: bool = False) -> str:
         """
-        Detect current market regime using ML or rules
+        Detect current market regime using ML or rules or ensemble
         
         Args:
             df: DataFrame with OHLCV data
             idx: Index to detect regime at (default: latest)
+            ensemble: If True, use ensemble of ML and rule-based (voting)
             
         Returns:
             Regime string
@@ -164,8 +165,30 @@ class RegimeDetector:
         # Extract features
         features = self.extract_regime_features(df, idx)
         
+        # Ensemble approach: combine ML and rule-based
+        if ensemble and self.use_ml and self.is_trained:
+            # Get ML prediction
+            feature_df = pd.DataFrame([features])
+            predictions = self.model.predict(feature_df)
+            ml_regime_idx = int(np.argmax(predictions[0]))
+            ml_regime = self.idx_to_regime[ml_regime_idx]
+            ml_confidence = float(predictions[0][ml_regime_idx])
+            
+            # Get rule-based prediction
+            rule_regime = self._rule_based_classify(features)
+            
+            # If both agree, high confidence
+            if ml_regime == rule_regime:
+                return ml_regime
+            
+            # If they disagree, use ML if confident (>0.6), otherwise use rule-based
+            if ml_confidence > 0.6:
+                return ml_regime
+            else:
+                return rule_regime
+        
         # Use ML model if trained
-        if self.use_ml and self.is_trained:
+        elif self.use_ml and self.is_trained:
             feature_df = pd.DataFrame([features])
             predictions = self.model.predict(feature_df)
             regime_idx = int(np.argmax(predictions[0]))

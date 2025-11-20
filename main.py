@@ -144,8 +144,9 @@ class SMCTradingSystem:
                 # Get probability from scorer
                 prob = self.scorer.predict_proba(feature_df)[0]
                 
-                # Get regime
-                regime = self.regime_detector.detect_regime(self.data, current_idx)
+                # Get regime (with ensemble if configured)
+                ensemble = getattr(config, 'USE_ENSEMBLE_REGIME', False)
+                regime = self.regime_detector.detect_regime(self.data, current_idx, ensemble=ensemble)
                 
                 # Trade decision logic
                 if (prob > config.SCORER_PROBABILITY_THRESHOLD and 

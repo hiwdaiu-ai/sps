@@ -238,7 +238,31 @@ self.model = RandomForestClassifier()
 
 ## Testing
 
-The system includes sample data generation for testing. To validate with your own data:
+### Run Component Tests
+
+```bash
+# Run all component tests
+python test_system.py
+```
+
+This tests all major components: data ingestion, SMC detection, feature extraction, regime detection, signal scoring, risk management, and execution.
+
+### Run Usage Examples
+
+```bash
+# Run all usage examples
+python examples.py
+```
+
+This demonstrates:
+- Basic usage with sample data
+- Pattern detection only
+- Feature extraction
+- Regime detection over time
+- Custom configuration
+- Risk management controls
+
+### Validate with Your Own Data
 
 1. Prepare CSV with columns: `timestamp, open, high, low, close, volume`
 2. Load data: `system.load_data('your_data.csv')`
